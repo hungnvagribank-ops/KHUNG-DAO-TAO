@@ -289,8 +289,7 @@ function printOnePage() {
 window.addEventListener('beforeprint', function () {
     const printArea = document.getElementById('rightPanel');
     if (!printArea) return;
-    printArea.style.transform = '';
-    printArea.style.width = '';
+    printArea.style.zoom = '';
     // ép reflow để đo đúng kích thước ở layout in (không còn thanh bên trái)
     void printArea.offsetHeight;
     const contentWidth = printArea.scrollWidth;
@@ -300,16 +299,15 @@ window.addEventListener('beforeprint', function () {
     const pageHeightPx = 690;
     let scale = Math.min(pageWidthPx / contentWidth, pageHeightPx / contentHeight, 1);
     if (scale < 0.3) scale = 0.3;
-    printArea.style.transform = `scale(${scale})`;
-    printArea.style.transformOrigin = 'top left';
-    printArea.style.width = (100 / scale) + '%';
+    // dùng zoom (co thật kích thước layout) để trình duyệt tính đúng số trang, khác với
+    // transform:scale chỉ co phần hiển thị mà không đổi kích thước dùng để ngắt trang
+    printArea.style.zoom = scale;
 });
 
 window.addEventListener('afterprint', function () {
     const printArea = document.getElementById('rightPanel');
     if (printArea) {
-        printArea.style.transform = '';
-        printArea.style.width = '';
+        printArea.style.zoom = '';
     }
 });
 
