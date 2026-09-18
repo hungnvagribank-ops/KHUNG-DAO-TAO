@@ -283,30 +283,35 @@ function selectPosition(idx) {
 }
 
 function printOnePage() {
-    const printArea = document.getElementById('rightPanel');
-    if (!printArea) { window.print(); return; }
-    // reset trước khi đo
-    printArea.style.transform = '';
-    printArea.style.width = '';
-    // kích thước vùng in A4 ngang, trừ margin 8mm mỗi bên (~30px @96dpi)
-    const pageWidthPx = 1080;
-    const pageHeightPx = 720;
-    const contentWidth = printArea.scrollWidth;
-    const contentHeight = printArea.scrollHeight;
-    let scale = Math.min(pageWidthPx / contentWidth, pageHeightPx / contentHeight, 1);
-    if (scale < 0.35) scale = 0.35; // giới hạn để chữ không quá nhỏ, có thể tràn nhẹ nếu quá nhiều dữ liệu
-    printArea.style.transform = `scale(${scale})`;
-    printArea.style.width = (100 / scale) + '%';
     window.print();
 }
 
-window.onafterprint = function () {
+window.addEventListener('beforeprint', function () {
+    const printArea = document.getElementById('rightPanel');
+    if (!printArea) return;
+    printArea.style.transform = '';
+    printArea.style.width = '';
+    // ép reflow để đo đúng kích thước ở layout in (không còn thanh bên trái)
+    void printArea.offsetHeight;
+    const contentWidth = printArea.scrollWidth;
+    const contentHeight = printArea.scrollHeight;
+    // vùng in khả dụng của A4 ngang, margin 8mm mỗi bên (đã trừ sẵn hao hụt an toàn 5%)
+    const pageWidthPx = 1000;
+    const pageHeightPx = 690;
+    let scale = Math.min(pageWidthPx / contentWidth, pageHeightPx / contentHeight, 1);
+    if (scale < 0.3) scale = 0.3;
+    printArea.style.transform = `scale(${scale})`;
+    printArea.style.transformOrigin = 'top left';
+    printArea.style.width = (100 / scale) + '%';
+});
+
+window.addEventListener('afterprint', function () {
     const printArea = document.getElementById('rightPanel');
     if (printArea) {
         printArea.style.transform = '';
         printArea.style.width = '';
     }
-};
+});
 
 init();
 
