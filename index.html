@@ -71,7 +71,17 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#f0f4f8;
 .tl-other{background:#F5F5F5;color:#616161}
 .btn-print{padding:8px 20px;background:#fff;color:#00573F;border:2px solid #00573F;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;float:right;margin:16px 24px;transition:all .2s}
 .btn-print:hover{background:#00573F;color:#fff}
-@media print{.header,.left-panel,.btn-print{display:none!important}.container{padding:0}.right-panel{width:100%}.detail-card{box-shadow:none;border:1px solid #ccc}body{background:#fff}}
+@media print{
+@page{size:A4 landscape;margin:8mm}
+.header,.left-panel,.btn-print{display:none!important}
+.container{padding:0;display:block}
+.right-panel{width:100%}
+.detail-card{box-shadow:none;border:1px solid #ccc;page-break-inside:avoid;break-inside:avoid;margin-bottom:8px}
+.course-table{page-break-inside:avoid}
+.course-table tr{page-break-inside:avoid}
+body{background:#fff}
+#rightPanel{transform-origin:top left}
+}
 @media(max-width:900px){.container{flex-direction:column;padding:12px}.left-panel{width:100%}.position-list{max-height:300px}}
 </style>
 </head>
@@ -243,7 +253,7 @@ function selectPosition(idx) {
                 <span>🏢 ${pos.unit || 'N/A'}</span>
             </div>
         </div>
-        <button class="btn-print" onclick="window.print()">🖨️ In / Xuất PDF</button>
+        <button class="btn-print" onclick="printOnePage()">🖨️ In / Xuất PDF (1 trang)</button>
         <div class="stats-row">
             <div class="stat-box"><div class="stat-number">${totalCourses}</div><div class="stat-label">Tổng chuyên đề</div></div>
             <div class="stat-box"><div class="stat-number">${tl01}</div><div class="stat-label">Giai đoạn 0-1 năm</div></div>
@@ -271,6 +281,32 @@ function selectPosition(idx) {
     </div>`;
     panel.innerHTML = html;
 }
+
+function printOnePage() {
+    const printArea = document.getElementById('rightPanel');
+    if (!printArea) { window.print(); return; }
+    // reset trước khi đo
+    printArea.style.transform = '';
+    printArea.style.width = '';
+    // kích thước vùng in A4 ngang, trừ margin 8mm mỗi bên (~30px @96dpi)
+    const pageWidthPx = 1080;
+    const pageHeightPx = 720;
+    const contentWidth = printArea.scrollWidth;
+    const contentHeight = printArea.scrollHeight;
+    let scale = Math.min(pageWidthPx / contentWidth, pageHeightPx / contentHeight, 1);
+    if (scale < 0.35) scale = 0.35; // giới hạn để chữ không quá nhỏ, có thể tràn nhẹ nếu quá nhiều dữ liệu
+    printArea.style.transform = `scale(${scale})`;
+    printArea.style.width = (100 / scale) + '%';
+    window.print();
+}
+
+window.onafterprint = function () {
+    const printArea = document.getElementById('rightPanel');
+    if (printArea) {
+        printArea.style.transform = '';
+        printArea.style.width = '';
+    }
+};
 
 init();
 
