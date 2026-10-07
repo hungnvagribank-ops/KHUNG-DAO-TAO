@@ -163,7 +163,7 @@ body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#f0f4f8;
 <body>
 <div class="header">
 <h1>🏦 Tra cứu Khung Chương trình Đào tạo – Agribank</h1>
-<p>Chọn đơn vị, đối tượng và phòng / bộ phận để xem các chuyên đề đào tạo cần hoàn thành (275 vị trí)</p>
+<p>Chọn đơn vị, đối tượng và phòng / bộ phận để xem các chuyên đề đào tạo cần hoàn thành · bản 07/10/2026 (275 vị trí)</p>
 </div>
 <div class="container">
 <div class="left-panel">
@@ -342,7 +342,7 @@ function renderDetail(cfg) {
             <strong>QH</strong> = Quy hoạch &nbsp;
             <strong>BN</strong> = Bổ nhiệm &nbsp;
             <strong>BN lại</strong> = Bổ nhiệm lại
-        </div>
+        </div>${curUser ? `<div style="font-size:13px;color:#666;margin-top:10px"><strong>Cột "Đã đạt":</strong> <span class="chk on" style="display:inline-block;width:18px;height:18px;line-height:14px;font-size:12px;vertical-align:-4px;text-align:center">✓</span> đã hoàn thành &nbsp; <span class="chk on doing" style="display:inline-block;width:18px;height:18px;line-height:14px;font-size:12px;vertical-align:-4px;text-align:center">✓</span> đang học / chưa hoàn thành (tính theo tuỳ chọn trong thẻ cán bộ) &nbsp; ô trống = chưa có dữ liệu</div>` : ''}
     </div>`;
     panel.innerHTML = html;
 }
@@ -408,6 +408,7 @@ function parseLearningRows(rows){
         st:    find(x=>x.includes('bang diem) trang thai')),
         done:  find(x=>x==='trang thai hoan thanh'),
         date:  find(x=>x.includes('hoan thanh vao ngay')),
+        desc:  find(x=>x.startsWith('lop hoc tong hop mo ta') || (x.includes('mo ta') && x.includes('lop hoc'))),
     };
     const miss = ['user','org','title','st'].filter(k=>col[k]<0);
     if (miss.length) throw new Error('Thiếu cột bắt buộc: '+miss.join(', '));
@@ -421,7 +422,7 @@ function parseLearningRows(rows){
         const regst = col.regst>=0 ? plain(r[col.regst]) : '';
         const st = plain(r[col.st]), done = col.done>=0 ? plain(r[col.done]) : '';
         const passed = !regst.includes('huy') && (st==='da hoan thanh' || done==='thanh cong') && done!=='khong thanh cong';
-        u.courses.push({title:String(r[col.title]??'').trim(), cid:col.cid>=0?String(r[col.cid]??'').trim():'', passed, doing: !passed && !regst.includes('huy') && st.includes('dang'), stText: String(r[col.st]??'').trim(), date:col.date>=0?r[col.date]:''});
+        u.courses.push({title:String(r[col.title]??'').trim(), cid:col.cid>=0?String(r[col.cid]??'').trim():'', passed, doing: !passed && !regst.includes('huy') && !st.includes('huy'), stText: String(r[col.st]??'').trim(), desc: (()=>{ const t=col.desc>=0?String(r[col.desc]??'').replace(/\s+/g,' ').trim():''; return t.length<=200?t:''; })(), date:col.date>=0?r[col.date]:''});
     }
     return users;
 }
@@ -459,10 +460,15 @@ function suggestPosition(org, pos){
 // Quy tắc ghép thủ công (sửa/thêm tuỳ ý): tên khung chứa "frame" VÀ tên khóa học trên hệ thống chứa "excel" (không dấu, chữ thường)
 const MANUAL_ALIASES = [
     {frame:'iso 27001',        excel:'an toan thong tin'},
-    {frame:'esg',              excel:'esg'},
+    {frame:'tong quan esg',    excel:'esg'},
     {frame:'van hoa doanh nghiep', excel:'van hoa doanh nghiep'},
     {frame:'agile',            excel:'agile'},
 ];
+function courseHitKind(frameName, x){
+    if (courseMatches(frameName, x.title)) return 'title';
+    if (x.desc && courseMatches(frameName, x.desc)) return 'desc';
+    return null;
+}
 function courseMatches(frameName, excelTitle){
     if (matchScore(frameName, excelTitle)>0) return true;
     const f=plain(frameName), e=plain(excelTitle);
@@ -582,7 +588,7 @@ function renderUserCard() {
         <div class="uc-row"><span>Đơn vị trong khung</span><b>${userUnit ? esc(unitText(userUnit)) : 'Chưa xác định'}</b></div>
         ${userUnit ? '' : '<div class="uc-warn">Chưa tự nhận diện được đơn vị – hãy chọn đơn vị ở Bước 2.</div>'}
         <div class="uc-row"><span>Đã hoàn thành trên hệ thống</span><b>${passedN} khóa</b></div>
-        <label class="uc-opt"><input type="checkbox" ${countInProgress ? 'checked' : ''} onchange="countInProgress = this.checked; refreshAll();"> Tính cả chương trình đang học (đã tham gia, chưa hoàn thành)</label>
+        <label class="uc-opt"><input type="checkbox" ${countInProgress ? 'checked' : ''} onchange="countInProgress = this.checked; refreshAll();"> Tính cả chương trình đang học / chưa hoàn thành (đã tham gia)</label>
         <div class="uc-hint">Bước 2 đã được điền sẵn theo đơn vị/phòng của cán bộ – bạn có thể đổi sang vị trí khác để so sánh. Dấu ✓ được gắn tự động khi tên chương trình trùng hoặc gần giống; bấm vào ô để sửa tay.
             <a href="#" onclick="resetOverrides();return false">Bỏ các chỉnh sửa tay</a></div>`;
     card.hidden = false;
@@ -598,13 +604,15 @@ function courseStatus(c) {
     let auto = matchCache.get(key);
     if (!auto) {
         let hit = null, dh = null;
+        const label = (x, kind) => x.title + (kind === 'desc' ? ' [khớp theo mô tả: ' + x.desc + ']' : '');
+        let hitL = '', dhL = '';
         for (const x of curUser.courses) {
-            if (!courseMatches(c.name, x.title)) continue;
-            if (x.passed) { if (!hit || (x.date instanceof Date && (!(hit.date instanceof Date) || x.date > hit.date))) hit = x; }
-            else if (x.doing && !dh) dh = x;
+            const kind = courseHitKind(c.name, x); if (!kind) continue;
+            if (x.passed) { if (!hit || (x.date instanceof Date && (!(hit.date instanceof Date) || x.date > hit.date))) { hit = x; hitL = label(x, kind); } }
+            else if (x.doing && !dh) { dh = x; dhL = label(x, kind); }
         }
-        auto = {ok: !!hit, by: hit ? hit.title : '', date: hit ? fmtDate(hit.date) : '',
-                doing: !hit && !!dh, doingBy: dh ? dh.title : '', doingSt: dh ? dh.stText : ''};
+        auto = {ok: !!hit, by: hitL, date: hit ? fmtDate(hit.date) : '',
+                doing: !hit && !!dh, doingBy: dhL, doingSt: dh ? dh.stText : ''};
         matchCache.set(key, auto);
     }
     if (ov === undefined) return {...auto, manual: false, key};
@@ -625,9 +633,9 @@ function chkCell(c) {
     const st = courseStatus(c), show = st.ok || (countInProgress && st.doing);
     let tip;
     if (st.ok) tip = st.manual ? 'Đánh dấu tay: đã đạt' : 'Đã hoàn thành: ' + st.by + (st.date ? ' (' + st.date + ')' : '');
-    else if (st.doing) tip = (countInProgress ? 'Đang tham gia (' + (st.doingSt || 'chưa hoàn thành') + '): ' : 'Có đăng ký nhưng chưa hoàn thành, chưa tính: ') + st.doingBy;
+    else if (st.doing) tip = (countInProgress ? 'Đang tham gia (' + (st.doingSt || 'chưa hoàn thành') + '): ' : 'Đã tham gia nhưng chưa hoàn thành, chưa tính: ') + st.doingBy;
     else tip = st.manual ? 'Đánh dấu tay: chưa đạt' : 'Chưa có dữ liệu học';
-    return `<td class="col-chk"><button type="button" class="chk ${show ? 'on' : ''} ${show && !st.ok ? 'doing' : ''} ${st.manual ? 'manual' : ''}" data-k="${encodeURIComponent(st.key)}" title="${esc(tip)}" onclick="toggleCourse(this)">${show ? '✓' : ''}</button></td>`;
+    return `<td class="col-chk"><button type="button" class="chk ${show ? 'on' : ''} ${show && !st.ok ? 'doing' : ''}  ${st.manual ? 'manual' : ''}" data-k="${encodeURIComponent(st.key)}" title="${esc(tip)}" onclick="toggleCourse(this)">${show ? '✓' : ''}</button></td>`;
 }
 function positionProgress(pos) {
     const pk = pliFor(pos, viewRole), list = [...(pk ? (pliCourses[pk] || []) : []), ...(pos.courses || [])];
@@ -862,7 +870,7 @@ function loadEmbedded() {
     try {
         const data = JSON.parse(el.textContent), m = new Map();
         data.users.forEach(u => {
-            u.courses.forEach(c => { if (c.date) { const d = new Date(c.date); if (!isNaN(d)) c.date = d; } });
+            u.courses.forEach(c => { if (c.tried) c.doing = true; if (c.date) { const d = new Date(c.date); if (!isNaN(d)) c.date = d; } });
             m.set(String(u.username).toLowerCase(), u);
         });
         learning = m; learningSource = data.source || ''; matchCache = new Map();
@@ -880,7 +888,7 @@ function buildExportHtml() {
     q('#userInput').removeAttribute('value'); q('#compareBtn').setAttribute('disabled', '');
     clone.querySelectorAll('#printFit, #embeddedLearning').forEach(n => n.remove());
     const users = [...learning.values()].map(u => ({username: u.username, name: u.name, org: u.org,
-        courses: u.courses.map(c => ({title: c.title, cid: c.cid, passed: c.passed, doing: !!c.doing, stText: c.stText || '', date: (c.date instanceof Date && !isNaN(c.date)) ? c.date.toISOString() : (c.date || '')}))}));
+        courses: u.courses.map(c => ({title: c.title, cid: c.cid, passed: c.passed, doing: !!c.doing, stText: c.stText || '', desc: c.desc || '', date: (c.date instanceof Date && !isNaN(c.date)) ? c.date.toISOString() : (c.date || '')}))}));
     const tag = document.createElement('script'); tag.id = 'embeddedLearning'; tag.type = 'application/json';
     tag.textContent = JSON.stringify({source: learningSource, exported: new Date().toLocaleDateString('vi-VN'), users}).replace(/</g, '\\u003c');
     const main = [...clone.querySelectorAll('script')].find(sc => sc.textContent.includes('const RAW_DATA'));
